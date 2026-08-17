@@ -9,7 +9,8 @@ venv/
 .idea/
 .vscode/
 
-data/
+data/*
+!data/ledger.example.json
 logs/
 secrets/*.env
 !secrets/vault.template.env

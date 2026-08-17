@@ -56,7 +56,15 @@ python3 tools/listing_risk_score.py --price 10 >/dev/null 2>&1 \
   && echo "    ✓ listing_risk_score.py" || warn "  ✗ listing_risk_score.py"
 python3 tools/order_ledger.py --db /tmp/_bootstrap_ledger.json list >/dev/null 2>&1 \
   && echo "    ✓ order_ledger.py" || warn "  ✗ order_ledger.py"
+python3 -c "import ast,sys;ast.parse(open('tools/dashboard.py').read())" 2>/dev/null \
+  && echo "    ✓ dashboard.py" || warn "  ✗ dashboard.py"
 rm -f /tmp/_bootstrap_check.json /tmp/_bootstrap_ledger.json
+
+# первый запуск: подложить демо-данные, чтобы дашборд не был пустым
+if [[ ! -f data/ledger.json && -f data/ledger.example.json ]]; then
+  cp data/ledger.example.json data/ledger.json
+  say "создан data/ledger.json из примера (замени своими данными)"
+fi
 
 # --- 6. состояние проекта --------------------------------------------------
 echo
@@ -66,6 +74,8 @@ echo "-------------------------------------------------------------------"
 echo "-------------------------------------------------------------------"
 echo "Последние коммиты:"
 git log --oneline -5 2>/dev/null | sed 's/^/    /'
+echo
+say "ДАШБОРД:  python3 tools/dashboard.py   →  http://0.0.0.0:8080"
 echo
 say "СЛЕДУЮЩИЙ ШАГ — прочитай в таком порядке:"
 echo "    1. AGENTS.md            — правила работы"
