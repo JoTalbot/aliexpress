@@ -39,7 +39,7 @@
 | T-032 | `tools/order_ledger.py` — учёт заказов, P&L, оборотка | DONE | arena-agent-sandbox-20260817-1152 |
 | T-033 | Логистика UA / EU-forward / dropship | DONE | arena-agent-sandbox-20260817-1152 |
 | T-034 | Операционка возвратов дропшиппера | DONE | arena-agent-sandbox-20260817-1152 |
-| T-035 | Веб-дашборд над ledger (локальный, без внешних CDN) | TODO | — |
+| T-035 | Веб-дашборд над ledger (локальный, без внешних CDN) | DONE | arena-agent-sandbox-20260817-1152 |
 | T-036 | Автонапоминания о дедлайнах (cron/systemd timer) | TODO | — |
 | T-037 | Импорт заказов из CSV-выгрузки AliExpress | TODO | — |
 | T-038 | Сравнение форвардеров UA↔EU: цена, фотофиксация, сроки | TODO | — |
