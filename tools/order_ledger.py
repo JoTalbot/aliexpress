@@ -32,6 +32,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import os
 from dataclasses import dataclass, asdict, field
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -178,9 +179,28 @@ def load(db: Path) -> list[Order]:
 
 
 def save(db: Path, orders: list[Order]) -> None:
+    """Атомарная запись с advisory-локом.
+
+    T-061: дашборд, CLI и cron-remind могут работать одновременно.
+    Лок сериализует запись, os.replace исключает получение битого файла
+    читателем. Окно «потерянного обновления» (load→modify→save двух процессов)
+    остаётся теоретически возможным, но сокращено до миллисекунд.
+    """
     db.parent.mkdir(parents=True, exist_ok=True)
-    db.write_text(json.dumps([asdict(o) for o in orders], ensure_ascii=False, indent=2),
-                  encoding="utf-8")
+    payload = json.dumps([asdict(o) for o in orders], ensure_ascii=False, indent=2)
+    lock_path = db.with_suffix(".lock")
+    lock_file = open(lock_path, "w")
+    try:
+        try:
+            import fcntl
+            fcntl.flock(lock_file, fcntl.LOCK_EX)
+        except ImportError:      # Windows: работаем без flock
+            pass
+        tmp = db.with_suffix(".tmp")
+        tmp.write_text(payload, encoding="utf-8")
+        os.replace(tmp, db)      # атомарно на POSIX и NTFS
+    finally:
+        lock_file.close()
 
 
 def find(orders: list[Order], oid: str) -> Order:
@@ -297,6 +317,7 @@ def main() -> None:
         save(args.db, orders)
         print(f"✓ Заявка открыта: {REASONS[args.reason]} на {o.claim_asked:.2f} {o.currency}")
         print("  Не закрывай спор до решения. Отклоняй несоразмерные предложения.")
+        print(f"  План доказательств: python3 tools/evidence_pack.py --id {o.order_id} --make-dirs")
 
     elif args.cmd == "refunded":
         o = find(orders, args.id)
@@ -392,29 +413,39 @@ def main() -> None:
 
     elif args.cmd == "pnl":
         act = [o for o in orders if o.status != "lost"]
-        inv = sum(o.invested() for o in act)
-        rev = sum(o.sold_price for o in act)
-        ref = sum(o.refund_amount for o in act)
-        cref = sum(o.customer_refunded for o in act)
-        net = sum(o.net() for o in act)
-        pend = sum(o.pending_recovery() for o in orders)
-        lost = sum(o.invested() for o in orders if o.status == "lost")
+        currencies = sorted({o.currency for o in act}) or ["USD"]
+        mixed = len(currencies) > 1
         print("=" * 58)
-        print("P&L ПО ЗАКАЗАМ")
+        print("P&L ПО ЗАКАЗАМ" + (" — ПО ВАЛЮТАМ" if mixed else ""))
         print("=" * 58)
-        print(f"  Заказов активных:            {len(act)}")
-        print(f"  Вложено (закупка+доставка):  {inv:>10.2f}")
-        print(f"  Выручка от продаж:           {rev:>10.2f}")
-        print(f"  Возвращено поставщиком:      {ref:>10.2f}")
-        print(f"  Возвращено клиентам:        -{cref:>10.2f}")
-        print("-" * 58)
-        print(f"  ИТОГО:                       {net:>+10.2f}")
-        print(f"  Ожидается к возврату:        {pend:>10.2f}")
-        print(f"  Списано в потери:            {lost:>10.2f}")
-        if inv:
-            print(f"  Маржинальность:              {net / inv * 100:>9.1f}%")
+        if mixed:
+            print("  ⚠ Заказы в разных валютах — итоги раздельно, суммировать их нельзя.")
+        for cur in currencies:
+            grp = [o for o in act if o.currency == cur]
+            inv = sum(o.invested() for o in grp)
+            rev = sum(o.sold_price for o in grp)
+            ref = sum(o.refund_amount for o in grp)
+            cref = sum(o.customer_refunded for o in grp)
+            net = sum(o.net() for o in grp)
+            pend = sum(o.pending_recovery() for o in orders if o.currency == cur)
+            lost = sum(o.invested() for o in orders
+                       if o.status == "lost" and o.currency == cur)
+            if mixed:
+                print(f"\n  --- {cur} ({len(grp)} заказов) ---")
+            else:
+                print(f"  Заказов активных:            {len(grp)}")
+            print(f"  Вложено (закупка+доставка):  {inv:>10.2f} {cur}")
+            print(f"  Выручка от продаж:           {rev:>10.2f} {cur}")
+            print(f"  Возвращено поставщиком:      {ref:>10.2f} {cur}")
+            print(f"  Возвращено клиентам:        -{cref:>10.2f} {cur}")
+            print("-" * 58)
+            print(f"  ИТОГО:                       {net:>+10.2f} {cur}")
+            print(f"  Ожидается к возврату:        {pend:>10.2f} {cur}")
+            print(f"  Списано в потери:            {lost:>10.2f} {cur}")
+            if inv:
+                print(f"  Маржинальность:              {net / inv * 100:>9.1f}%")
         rate = len([o for o in orders if o.status in ("claimed", "refunded")]) / len(orders) * 100 if orders else 0
-        print(f"  Доля заказов с претензией:   {rate:>9.1f}%")
+        print(f"\n  Доля заказов с претензией:   {rate:>9.1f}%")
         fx_rows = [o for o in orders if o.fx_loss() is not None]
         if fx_rows:
             fx_total = sum(o.fx_loss() for o in fx_rows)

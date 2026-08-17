@@ -180,6 +180,26 @@ class TestFX(unittest.TestCase):
 
 class TestPersistence(unittest.TestCase):
 
+    def test_atomic_save_no_tmp_leftover(self):
+        # T-061: запись атомарна, .tmp не остаётся, файл валиден.
+        d = tempfile.mkdtemp()
+        db = Path(d) / "l.json"
+        save(db, [Order(order_id="A", title="t")])
+        self.assertFalse((Path(d) / "l.tmp").exists())
+        self.assertEqual(load(db)[0].order_id, "A")
+
+    def test_concurrent_writers_leave_valid_json(self):
+        # Два потока пишут одновременно — файл в конце валиден (лок + os.replace).
+        import threading
+        d = tempfile.mkdtemp()
+        db = Path(d) / "l.json"
+        def writer(n):
+            for i in range(20):
+                save(db, [Order(order_id=f"W{n}-{i}", title="t")])
+        ts = [threading.Thread(target=writer, args=(n,)) for n in range(4)]
+        [t.start() for t in ts]; [t.join() for t in ts]
+        self.assertEqual(len(load(db)), 1)  # валидный JSON, без исключений
+
     def test_roundtrip(self):
         with tempfile.TemporaryDirectory() as d:
             db = Path(d) / "l.json"
@@ -358,6 +378,78 @@ class TestImport(unittest.TestCase):
         m = imp.build_mapping(["Номер заказа", "Товар", "Списано", "Возврат на карту"], {})
         self.assertEqual(m.get("card_charged"), "Списано")
         self.assertEqual(m.get("card_refunded"), "Возврат на карту")
+
+
+class TestDashboardHTTP(unittest.TestCase):
+    """T-063: живые HTTP-тесты дашборда — данные, авторизация, FX-факты."""
+
+    @classmethod
+    def setUpClass(cls):
+        import threading
+        import urllib.request
+        from http.server import ThreadingHTTPServer
+        import dashboard as dash
+        cls.dash = dash
+        cls.urllib_request = urllib.request
+        d = tempfile.mkdtemp()
+        cls.db = Path(d) / "l.json"
+        save(cls.db, [Order(order_id="H-1", title="t", cost=10.0, shipped=days_ago(5))])
+        dash.DB = cls.db
+        dash.TOKEN = "test-token"
+        cls.srv = ThreadingHTTPServer(("127.0.0.1", 0), dash.Handler)
+        cls.port = cls.srv.server_address[1]
+        threading.Thread(target=cls.srv.serve_forever, daemon=True).start()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.srv.shutdown()
+        cls.dash.TOKEN = None
+
+    def _get(self, path, headers=None):
+        req = self.urllib_request.Request(f"http://127.0.0.1:{self.port}{path}",
+                                          headers=headers or {})
+        try:
+            with self.urllib_request.urlopen(req, timeout=5) as r:
+                return r.status, r.read()
+        except Exception as e:  # HTTPError
+            return e.code, b""
+
+    def _post(self, path, payload, headers=None):
+        h = {"Content-Type": "application/json"}
+        h.update(headers or {})
+        req = self.urllib_request.Request(f"http://127.0.0.1:{self.port}{path}",
+                                          data=json.dumps(payload).encode(), headers=h)
+        try:
+            with self.urllib_request.urlopen(req, timeout=5) as r:
+                return r.status, json.loads(r.read())
+        except Exception as e:
+            return e.code, {}
+
+    def test_unauthorized_gets_401(self):
+        self.assertEqual(self._get("/api/data")[0], 401)
+        self.assertEqual(self._post("/api/note", {"id": "H-1", "text": "x"})[0], 401)
+
+    def test_token_in_query_works(self):
+        self.assertEqual(self._get("/api/data?token=test-token")[0], 200)
+
+    def test_cookie_works_and_data_valid(self):
+        code, body = self._get("/api/data", {"Cookie": "dash_token=test-token"})
+        self.assertEqual(code, 200)
+        data = json.loads(body)
+        self.assertEqual(data["kpi"]["orders"], 1)
+        self.assertIn("fx_loss_total", data["kpi"])
+        self.assertIn("refund_wait", data)
+
+    def test_wrong_token_rejected(self):
+        self.assertEqual(self._get("/api/data?token=wrong")[0], 401)
+
+    def test_fx_endpoints_write_facts(self):
+        h = {"Cookie": "dash_token=test-token"}
+        code, r = self._post("/api/charged", {"id": "H-1", "amount": 420, "currency": "UAH"}, h)
+        self.assertEqual(code, 200)
+        o = load(self.db)[0]
+        self.assertAlmostEqual(o.card_charged, 420.0)
+        self.assertAlmostEqual(o.purchase_rate(), 42.0)
 
 
 class TestEvidencePack(unittest.TestCase):

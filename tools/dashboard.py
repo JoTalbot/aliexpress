@@ -106,6 +106,7 @@ def snapshot() -> dict:
             "margin": round(net / invested * 100, 1) if invested else 0.0,
             "claim_rate": round(claim_rate, 1),
             "fx_loss_total": fx_total,
+            "currencies": sorted({o.currency for o in act}),
         },
         "orders": rows,
         "routes": by_route,
@@ -249,6 +250,8 @@ function render(){
    '</div><div class="hint">'+c[3]+'</div></div>'}).join("");
 
  var al=[];
+ if(k.currencies&&k.currencies.length>1)al.push("<b>Заказы в разных валютах ("+k.currencies.join(", ")+
+  ").</b> Суммарные KPI выше смешивают валюты — точные итоги смотри в CLI: order_ledger.py pnl (разбивка по валютам).");
  var hot=DATA.orders.filter(function(o){return (o.urgency=="КРИТИЧНО"||o.urgency=="ПРОСРОЧЕНО")});
  if(hot.length)al.push("<b>"+hot.length+" заказ(ов) с горящим дедлайном.</b> Открывай спор до истечения окна — потом уже нельзя.");
  if(k.claim_rate>20)al.push("<b>Доля споров "+k.claim_rate+"%.</b> Высокая доля повышает риск ограничений на аккаунте (research/06).");
@@ -344,7 +347,7 @@ function claim(id){
  var n=prompt(t,"1");if(!n)return;
  var r=rs[parseInt(n,10)-1];if(!r){toast("Неверный номер",1);return}
  var amt=prompt("Запрашиваемая сумма:","");
- api("/api/claim",{id:id,reason:r,ask:parseFloat(amt||0)},function(){load();toast("Спор открыт. Не закрывай его до решения.")})}
+ api("/api/claim",{id:id,reason:r,ask:parseFloat(amt||0)},function(){load();toast("Спор открыт. Доказательства: tools/evidence_pack.py --id "+id)})}
 
 function refund(id){var a=prompt("Сумма возврата от поставщика:","");if(!a)return;
  api("/api/refunded",{id:id,amount:parseFloat(a)},function(){load();toast("Возврат записан")})}
