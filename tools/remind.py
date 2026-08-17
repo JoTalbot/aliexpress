@@ -32,6 +32,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from order_ledger import load, DB_DEFAULT, ROUTES, REASONS, d  # noqa: E402
 
+# ≈20 рабочих дней банковского окна возврата (research/17 §2) в календарных днях.
+# После этого срока — запрашивать ARN у поддержки и идти в банк.
+REFUND_WAIT_CAL_DAYS = 28
+
 
 def collect(db: Path, days: int) -> dict:
     orders = load(db)
@@ -56,21 +60,33 @@ def collect(db: Path, days: int) -> dict:
             if age > 30:
                 stale.append((o, age))
 
+    # Возврат одобрен, но зачисление на карту не отмечено дольше банковского окна:
+    # либо владелец не внёс refund-received, либо деньги реально зависли → ARN.
+    refund_wait = []
+    for o in orders:
+        if (o.status == "refunded" and o.refund_date
+                and o.refund_amount > 0 and o.card_refunded <= 0):
+            age = (date.today() - d(o.refund_date)).days
+            if age > REFUND_WAIT_CAL_DAYS:
+                refund_wait.append((o, age))
+
     unconfirmed = [o for o in active if o.delivered and not o.confirmed]
     gap = sum(o.capital_gap() for o in orders)
     pending = sum(o.pending_recovery() for o in orders)
+    fx_losses = [o.fx_loss() for o in orders if o.fx_loss() is not None]
 
     return {
         "date": date.today().isoformat(),
         "overdue": overdue, "critical": critical, "soon": soon,
-        "stale": stale, "unconfirmed": unconfirmed,
+        "stale": stale, "refund_wait": refund_wait, "unconfirmed": unconfirmed,
         "gap": round(gap, 2), "pending": round(pending, 2),
+        "fx_loss_total": round(sum(fx_losses), 2) if fx_losses else 0.0,
         "total_active": len(active),
     }
 
 
 def has_alerts(r: dict) -> bool:
-    return bool(r["overdue"] or r["critical"] or r["soon"] or r["stale"])
+    return bool(r["overdue"] or r["critical"] or r["soon"] or r["stale"] or r["refund_wait"])
 
 
 def as_text(r: dict, plain: bool = False) -> str:
@@ -95,6 +111,9 @@ def as_text(r: dict, plain: bool = False) -> str:
     block("🟡 Споры висят дольше 30 дней — пора эскалировать", r["stale"], YEL,
           lambda x: f"{x[0].order_id:<12} {x[0].title[:24]:<24} {x[1]} дн., "
                     f"{REASONS.get(x[0].claim_reason, x[0].claim_reason)}")
+    block(f"🟡 Возврат одобрен > {REFUND_WAIT_CAL_DAYS} дн., зачисление не отмечено", r["refund_wait"], YEL,
+          lambda x: f"{x[0].order_id:<12} {x[0].title[:22]:<22} {x[1]} дн. | проверь выписку; "
+                    f"денег нет → запроси ARN (research/17 §2)")
 
     if r["unconfirmed"]:
         out.append("")
@@ -102,13 +121,15 @@ def as_text(r: dict, plain: bool = False) -> str:
         for o in r["unconfirmed"]:
             out.append(f"  {o.order_id:<12} {o.title[:28]:<28} проверь товар до {o.deadline()[0]}")
 
-    if r["gap"] > 0 or r["pending"] > 0:
+    if r["gap"] > 0 or r["pending"] > 0 or r["fx_loss_total"]:
         out.append("")
         out.append(f"{B}Деньги в пути:{X}")
         if r["pending"]:
             out.append(f"  ожидается от поставщиков: {r['pending']:.2f}")
         if r["gap"]:
             out.append(f"  разрыв оборотки:          {r['gap']:.2f}")
+        if r["fx_loss_total"]:
+            out.append(f"  FX-потери накопленные:    {r['fx_loss_total']:.2f} (order_ledger.py fx)")
 
     if not has_alerts(r):
         out.append("")
@@ -130,8 +151,10 @@ def as_json(r: dict) -> str:
         "critical": pack(r["critical"], "days_left"),
         "soon": pack(r["soon"], "days_left"),
         "stale_claims": pack(r["stale"], "claim_age_days"),
+        "refund_wait": pack(r["refund_wait"], "days_since_refund"),
         "unconfirmed": [{"id": o.order_id, "title": o.title} for o in r["unconfirmed"]],
         "capital_gap": r["gap"], "pending_recovery": r["pending"],
+        "fx_loss_total": r["fx_loss_total"],
     }, ensure_ascii=False, indent=2)
 
 
@@ -195,7 +218,7 @@ def main() -> int:
 
     if r["overdue"]:
         return 2
-    if r["critical"] or r["soon"] or r["stale"]:
+    if r["critical"] or r["soon"] or r["stale"] or r["refund_wait"]:
         return 1
     return 0
 

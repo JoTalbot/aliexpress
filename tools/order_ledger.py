@@ -252,6 +252,8 @@ def main() -> None:
 
     s.add_parser("fx", help="отчёт по конвертационным потерям")
 
+    s.add_parser("today", help="сводка дня: дедлайны + зависшие возвраты + деньги в пути")
+
     n = s.add_parser("note"); n.add_argument("--id", required=True); n.add_argument("--text", required=True)
     cl = s.add_parser("close"); cl.add_argument("--id", required=True)
     lo = s.add_parser("lost"); lo.add_argument("--id", required=True)
@@ -350,6 +352,12 @@ def main() -> None:
             if charged:
                 print(f"  Доля от оборота по этим заказам: {total / charged * 100:.2f}%")
             print("\n  Снижение потерь: USD-карта + валюта USD на сайте (research/17 §3.3).")
+
+    elif args.cmd == "today":
+        # Единая сводка дня. Логика живёт в remind.py — здесь только вызов,
+        # чтобы не дублировать расчёты (импорт внутри ветки: remind сам импортирует ledger).
+        import remind
+        print(remind.as_text(remind.collect(args.db, days=7)))
 
     elif args.cmd == "note":
         o = find(orders, args.id)

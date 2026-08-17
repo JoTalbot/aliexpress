@@ -297,6 +297,32 @@ class TestRemind(unittest.TestCase):
                              confirmed=days_ago(14))])
         json.loads(remind.as_json(remind.collect(db, 7)))
 
+    def test_refund_stuck_beyond_bank_window_flagged(self):
+        # research/17 §2: 20 раб. дней ≈ 28 календарных; дольше — запрашивать ARN.
+        db = self._db([Order(order_id="R", title="t", shipped=days_ago(90),
+                             status="refunded", refund_amount=10.0,
+                             refund_date=days_ago(35))])
+        r = remind.collect(db, 7)
+        self.assertEqual(len(r["refund_wait"]), 1)
+        self.assertTrue(remind.has_alerts(r))
+
+    def test_refund_within_bank_window_not_flagged(self):
+        db = self._db([Order(order_id="R2", title="t", shipped=days_ago(60),
+                             status="refunded", refund_amount=10.0,
+                             refund_date=days_ago(10))])
+        self.assertEqual(len(remind.collect(db, 7)["refund_wait"]), 0)
+
+    def test_refund_received_on_card_not_flagged(self):
+        # Зачисление отмечено (card_refunded > 0) — напоминать не о чем.
+        db = self._db([Order(order_id="R3", title="t", shipped=days_ago(90),
+                             status="refunded", refund_amount=10.0,
+                             refund_date=days_ago(35), card_refunded=405.0)])
+        self.assertEqual(len(remind.collect(db, 7)["refund_wait"]), 0)
+
+    def test_bank_window_constant_unchanged(self):
+        # 28 календ. дней ≈ 20 рабочих — внешнее правило (research/17), не конфигурация.
+        self.assertEqual(remind.REFUND_WAIT_CAL_DAYS, 28)
+
 
 class TestImport(unittest.TestCase):
 
@@ -326,6 +352,12 @@ class TestImport(unittest.TestCase):
         m = imp.build_mapping(["Order ID", "Product Name", "Price"], {})
         self.assertEqual(m.get("order_id"), "Order ID")
         self.assertEqual(m.get("title"), "Product Name")
+
+    def test_column_mapping_fx_fields(self):
+        # T-049: FX-факты из выписки банка должны импортироваться.
+        m = imp.build_mapping(["Номер заказа", "Товар", "Списано", "Возврат на карту"], {})
+        self.assertEqual(m.get("card_charged"), "Списано")
+        self.assertEqual(m.get("card_refunded"), "Возврат на карту")
 
 
 class TestEvidencePack(unittest.TestCase):

@@ -43,6 +43,12 @@ ALIASES: dict[str, list[str]] = {
     "customer": ["customer", "buyer", "клиент", "покупатель", "клієнт"],
     "free_return": ["free return", "free returns", "бесплатный возврат", "безкоштовне повернення"],
     "route": ["route", "маршрут"],
+    # FX-факты по банковской выписке (T-049, research/17)
+    "card_charged": ["card charged", "charged", "списано", "списание", "сумма списания",
+                     "списано з картки", "сума списання"],
+    "card_refunded": ["card refunded", "refund received", "зачислено", "возврат на карту",
+                      "зараховано", "повернення на картку"],
+    "card_currency": ["card currency", "валюта карты", "валюта картки"],
 }
 
 DATE_FORMATS = ["%Y-%m-%d", "%d.%m.%Y", "%d/%m/%Y", "%m/%d/%Y",
@@ -207,6 +213,9 @@ def main() -> int:
             shipped=parse_date(get(row, "shipped")),
             delivered=parse_date(get(row, "delivered")),
             free_return=norm(get(row, "free_return")) in TRUTHY,
+            card_charged=parse_money(get(row, "card_charged")),
+            card_refunded=parse_money(get(row, "card_refunded")),
+            card_currency=get(row, "card_currency") or "UAH",
         )
         if get(row, "shipped") and not o.shipped:
             problems.append(f"строка {i} ({oid}): не распознана дата "
