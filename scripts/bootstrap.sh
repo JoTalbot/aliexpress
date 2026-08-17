@@ -58,6 +58,10 @@ python3 tools/order_ledger.py --db /tmp/_bootstrap_ledger.json list >/dev/null 2
   && echo "    ✓ order_ledger.py" || warn "  ✗ order_ledger.py"
 python3 -c "import ast,sys;ast.parse(open('tools/dashboard.py').read())" 2>/dev/null \
   && echo "    ✓ dashboard.py" || warn "  ✗ dashboard.py"
+python3 tools/evidence_pack.py --reason damaged >/dev/null 2>&1 \
+  && echo "    ✓ evidence_pack.py" || warn "  ✗ evidence_pack.py"
+python3 -c "import ast;ast.parse(open('tools/import_orders.py').read())" 2>/dev/null \
+  && echo "    ✓ import_orders.py (syntax)" || warn "  ✗ import_orders.py"
 python3 tools/remind.py --db /tmp/_bootstrap_ledger.json --quiet >/dev/null 2>&1 \
   && echo "    ✓ remind.py" || echo "    ✓ remind.py"
 rm -f /tmp/_bootstrap_check.json /tmp/_bootstrap_ledger.json

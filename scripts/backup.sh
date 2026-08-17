@@ -17,6 +17,10 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"; cd "$ROOT"
 ARCHIVE="secrets/data-backup.tar.gz.enc"
 CIPHER=(-aes-256-cbc -pbkdf2 -iter 240000 -salt)
 SOURCES=(data/ledger.json)
+# data/evidence: чек-листы, фото, скриншоты — тоже теряются с песочницей.
+# Видео исключаем: слишком большие для git (для них — облако/локальный диск).
+EVIDENCE_DIR="data/evidence"
+EVIDENCE_EXCLUDE=(--exclude='*.mp4' --exclude='*.mov' --exclude='*.avi' --exclude='*.mkv' --exclude='*.webm')
 
 _pass() { [[ -n "${VAULT_PASSPHRASE:-}" ]] && echo "-pass env:VAULT_PASSPHRASE" || echo "-pass stdin"; }
 
@@ -24,8 +28,9 @@ case "${1:-help}" in
   save)
     found=()
     for f in "${SOURCES[@]}"; do [[ -f "$f" ]] && found+=("$f"); done
-    if [[ ${#found[@]} -eq 0 ]]; then echo "Нечего сохранять — нет data/ledger.json"; exit 0; fi
-    tar czf - "${found[@]}" | openssl enc "${CIPHER[@]}" $(_pass) -out "$ARCHIVE"
+    [[ -d "$EVIDENCE_DIR" ]] && found+=("$EVIDENCE_DIR")
+    if [[ ${#found[@]} -eq 0 ]]; then echo "Нечего сохранять — нет data/ledger.json и data/evidence/"; exit 0; fi
+    tar czf - "${EVIDENCE_EXCLUDE[@]}" "${found[@]}" | openssl enc "${CIPHER[@]}" $(_pass) -out "$ARCHIVE"
     echo "✓ Зашифровано: $ARCHIVE ($(du -h "$ARCHIVE" | cut -f1))"
     echo "  Файлы: ${found[*]}"
     git add -f "$ARCHIVE"
