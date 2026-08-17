@@ -1,5 +1,7 @@
 # AliExpress Refund Research & Ops
 
+![tests](https://github.com/JoTalbot/aliexpress/actions/workflows/tests.yml/badge.svg)
+
 Рабочий проект по **возвратам средств (refund) и спорам на AliExpress**:
 исследовательская база + работающие инструменты учёта.
 
@@ -31,7 +33,7 @@ eval "$(./scripts/vault.sh export)"  # загрузить секреты
 **Перед каждым push:**
 
 ```bash
-python3 tests/test_tools.py    # 41 регрессионный тест
+python3 tests/test_tools.py    # регрессионные тесты (67+); CI гоняет их на каждый push
 ```
 
 **Сохранение работы** (использовать каждые 10–15 минут):
@@ -46,28 +48,33 @@ python3 tests/test_tools.py    # 41 регрессионный тест
 
 | Инструмент | Что делает |
 |---|---|
-| `tools/order_ledger.py` | **Основной.** Заказы: дедлайны BP, P&L, разрыв оборотки, экспорт CSV |
-| `tools/dashboard.py` | Веб-интерфейс над ledger: KPI, алерты, действия |
-| `tools/remind.py` | Напоминания о дедлайнах: cron, Telegram, webhook |
+| `tools/order_ledger.py` | **Основной.** Заказы: дедлайны BP, P&L по валютам, FX-потери, разрыв оборотки, `today` |
+| `tools/dashboard.py` | Веб-интерфейс над ledger: KPI, алерты, FX, токен-авторизация (`--token`) |
+| `tools/remind.py` | Напоминания: дедлайны, зависшие возвраты (ARN), cron/Telegram/webhook |
+| `tools/evidence_pack.py` | Пакет доказательств для спора: чек-лист, папки, шаблон обращения |
 | `tools/route_calc.py` | Landed cost по 4 маршрутам с учётом пошлин и сборов ЕС |
 | `tools/listing_risk_score.py` | Скоринг листинга по возвратопригодности до покупки |
-| `tools/import_orders.py` | Импорт заказов из CSV с автоопределением колонок |
-| `tools/dispute_deadline_tracker.py` | Лёгкий трекер только дедлайнов |
+| `tools/import_orders.py` | Импорт заказов из CSV (включая FX-факты из выписки) |
+| `tools/dispute_deadline_tracker.py` | ⚠ устарел — заменён ledger + remind |
 | `scripts/vault.sh` | Хранилище секретов, AES-256 |
 | `scripts/bootstrap.sh` | Восстановление окружения |
-| `scripts/save.sh` | Коммит + push одной командой |
+| `scripts/save.sh` | Коммит + push одной командой (+напоминание о бэкапе данных) |
+| `scripts/backup.sh` | Шифрованный бэкап ledger и доказательств в git |
 
 ```bash
 # завести заказ в день отправки
 python3 tools/order_ledger.py add --id AE-1001 --title "TWS наушники" \
     --cost 12.40 --shipped 2026-08-01 --free-return --route dropship --sold 29.90
 
+python3 tools/order_ledger.py today                # сводка дня одной командой
 python3 tools/order_ledger.py deadlines --days 7   # что горит
-python3 tools/order_ledger.py pnl                  # прибыльность
+python3 tools/order_ledger.py pnl                  # прибыльность (по валютам)
+python3 tools/order_ledger.py fx                   # потери на конвертации
 python3 tools/order_ledger.py exposure             # зависшие деньги
 
-python3 tools/dashboard.py                         # веб-интерфейс :8080
-python3 tools/remind.py --days 5                   # что горит (для cron)
+python3 tools/dashboard.py                         # веб-интерфейс :8080 (--token для удалённого)
+python3 tools/remind.py --days 5                   # что горит (cron/Telegram: docs/REMINDERS_SETUP.md)
+python3 tools/evidence_pack.py --id AE-1001        # план доказательств для спора
 python3 tools/route_calc.py --price 40 --items 3   # какой маршрут выгоднее
 python3 tools/import_orders.py --template          # образец CSV для импорта
 ```
@@ -89,9 +96,11 @@ python3 tools/import_orders.py --template          # образец CSV для �
 | `docs/PLAYBOOK.md` | Что делать при конкретной проблеме |
 | `docs/TEMPLATES_EN.md` | Шаблоны обращений на английском |
 | `docs/UNBOXING_CHECKLIST.md` | Печатный чек-лист распаковки |
+| `docs/REMINDERS_SETUP.md` | Telegram-напоминания под ключ |
+| `docs/OWNER_CHECKS.md` | Проверки, которые может сделать только владелец |
 | `docs/SCOPE_AND_ETHICS.md` | Границы проекта |
-| `research/` | 17 исследовательских материалов |
-| `tests/` | Регрессионные тесты (41), запускаются в bootstrap |
+| `research/` | 18 исследовательских материалов |
+| `tests/` + `.github/workflows/` | Регрессионные тесты (67+) локально и в CI |
 | `secrets/` | Зашифрованное хранилище (только шифртекст) |
 
 ## Исследование
@@ -114,6 +123,8 @@ python3 tools/import_orders.py --template          # образец CSV для �
 | 14 | Форвардеры и календарь сборов ЕС |
 | 15 | Право Украины, чарджбэк, сравнение площадок |
 | 16 | Сигналы антифрода |
+| 17 | Оплата как слой защиты: валюты, FX-потери, обратный путь денег |
+| 18 | Карта живых тем: TG, форумы, блоги, GitHub |
 
 Индекс: [`research/00-INDEX.md`](research/00-INDEX.md)
 
@@ -141,4 +152,9 @@ python3 tools/import_orders.py --template          # образец CSV для �
 4. **Репутация аккаунта решает.** Чистая история → автоодобрение за минуты.
    Много споров → отказы даже по честным заявкам. Не спорить по мелочи.
 5. **Парадокс Free Return:** бейдж означает «вернуть товар бесплатно»,
-   а не «оставить товар и получить деньги».
+   а не «оставить товар и получить деньги». Официальный лимит — **3 возврата/месяц**.
+   Проверяй этикетку сразу: пустые/невалидные этикетки — новый режим отказа.
+6. **PayPal для Украины на AliExpress недоступен** — внешний контур защиты
+   только чарджбэк по карте. Возврат 1:1 — только USD-карта + USD на сайте.
+7. **Волна ужесточения продолжается** (кон. 2025 – 2026): отказы «без объяснений»,
+   видео распаковки требуют даже для мелочёвки — снимай всегда (`docs/UNBOXING_CHECKLIST.md`).
