@@ -90,6 +90,7 @@
 | T-065 | Деприкация dispute_deadline_tracker | DONE | arena-agent-sandbox-20260817-1330 |
 | T-066 | claim → подсказка evidence_pack | DONE | arena-agent-sandbox-20260817-1330 |
 | T-067 | Архив журналов .agent (ADR-005) | DONE | arena-agent-sandbox-20260817-1330 |
+| T-068 | Карта живых тем сообществ: TG/форумы/блоги/GitHub | DONE | arena-agent-sandbox-20260817-1330 |
 
 ## Постоянный мониторинг (не закрывается)
 
