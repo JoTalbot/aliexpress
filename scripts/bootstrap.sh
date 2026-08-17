@@ -68,6 +68,18 @@ if [[ ! -f data/ledger.json && -f data/ledger.example.json ]]; then
   say "создан data/ledger.json из примера (замени своими данными)"
 fi
 
+# --- 5.5. регрессионные тесты ----------------------------------------------
+if [[ -f tests/test_tools.py ]]; then
+  find . -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
+  if python3 tests/test_tools.py >/tmp/_tests.log 2>&1; then
+    echo "    ✓ тесты: $(grep -oE 'Ran [0-9]+ tests' /tmp/_tests.log) — OK"
+  else
+    warn "  ✗ ТЕСТЫ ПАДАЮТ — проект в нерабочем состоянии, чини до начала работы:"
+    tail -20 /tmp/_tests.log | sed 's/^/      /'
+  fi
+  rm -f /tmp/_tests.log
+fi
+
 # --- 6. состояние проекта --------------------------------------------------
 echo
 say "СОСТОЯНИЕ ПРОЕКТА"
