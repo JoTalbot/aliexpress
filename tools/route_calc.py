@@ -29,6 +29,7 @@ UA_DUTY_FREE = 150.0      # €, лимит для Украины (законо�
 UA_DUTY = 0.10            # 10% пошлина на превышение
 UA_VAT = 0.20             # 20% НДС на превышение
 EU_FLAT_DUTY = 3.0        # €, Регламент (EU) 2026/382, с 01.07.2026 до 01.07.2028
+EU_HANDLING_FEE = 2.0     # €, ожидается с 01.11.2026 (на строку декларации) — см. research/14
 EU_DUTY_THRESHOLD = 150.0 # € — сбор применяется к B2C-посылкам ниже этого порога
 EU_VAT_PL = 0.23          # НДС Польши (типовая точка входа для форвардинга)
 EU_C2C_FREE = 45.0        # €, порог для частных отправлений без коммерческой цели
@@ -93,7 +94,8 @@ def fwd_cost_eur(weight: float) -> float:
     return pln * RATES["PLN"]
 
 
-def calc(price_eur: float, weight: float, items: int, ship_eur: float) -> list[Result]:
+def calc(price_eur: float, weight: float, items: int, ship_eur: float,
+         with_handling: bool = False) -> list[Result]:
     out: list[Result] = []
 
     # --- 1. UA-direct -----------------------------------------------------
@@ -125,11 +127,18 @@ def calc(price_eur: float, weight: float, items: int, ship_eur: float) -> list[R
     base = price_eur + ship_eur
 
     if base < EU_DUTY_THRESHOLD:
-        r.duty = EU_FLAT_DUTY * max(1, items)
-        r.notes.append(f"Регламент (EU) 2026/382: €{EU_FLAT_DUTY:.0f} × {max(1, items)} подпозиц.")
+        n = max(1, items)
+        per_line = EU_FLAT_DUTY + (EU_HANDLING_FEE if with_handling else 0.0)
+        r.duty = per_line * n
+        if with_handling:
+            r.notes.append(f"ЕС: (€{EU_FLAT_DUTY:.0f} пошлина + €{EU_HANDLING_FEE:.0f} "
+                           f"handling) × {n} строк = €{r.duty:.0f}")
+        else:
+            r.notes.append(f"Регламент (EU) 2026/382: €{EU_FLAT_DUTY:.0f} × {n} подпозиц.")
         if items > 1:
             r.warnings.append(f"{items} разных подпозиций → сбор умножается "
-                              f"(€{r.duty:.0f} вместо €{EU_FLAT_DUTY:.0f})")
+                              f"(€{r.duty:.0f} вместо €{per_line:.0f})")
+        r.warnings.append("сборы ЕС НЕ возвращаются при возврате товара")
     else:
         r.duty = base * 0.04
         r.notes.append("выше €150 — обычные ставки пошлины (ориентир ~4%, зависит от кода)")
@@ -211,7 +220,8 @@ def render(results: list[Result], cur: str, price: float, weight: float, items: 
         o.append(f"Это цена спокойствия. При товаре дороже {price:.0f} {cur} "
                  f"обычно окупается.")
     o.append("")
-    o.append("Правила: ЕС — Регламент (EU) 2026/382, €3/подпозиция, 01.07.2026–01.07.2028.")
+    o.append("Правила: ЕС — Регламент (EU) 2026/382, €3/строка декларации, до 01.07.2028.")
+    o.append("С 01.11.2026 ожидается +€2 handling fee (итого €5/строка): флаг --handling-fee.")
     o.append("Украина — лимит €150 действует; законопроект №15460 может отменить с 2027.")
     o.append("Цифры ориентировочные. Проверяй тариф форвардера и курс перед покупкой.")
     return "\n".join(o)
@@ -226,11 +236,13 @@ def main() -> None:
     p.add_argument("--shipping", type=float, default=0.0, help="доставка от продавца")
     p.add_argument("--currency", choices=list(RATES), default="EUR")
     p.add_argument("--format", choices=["text", "json"], default="text")
+    p.add_argument("--handling-fee", action="store_true",
+                   help="учесть €2 handling fee ЕС (ожидается с 01.11.2026)")
     a = p.parse_args()
 
     price_eur = to_eur(a.price, a.currency)
     ship_eur = to_eur(a.shipping, a.currency)
-    res = calc(price_eur, a.weight, a.items, ship_eur)
+    res = calc(price_eur, a.weight, a.items, ship_eur, a.handling_fee)
 
     if a.format == "json":
         k = RATES[a.currency]
