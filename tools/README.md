@@ -89,6 +89,24 @@ python3 tools/remind.py --quiet --webhook https://hooks.example.com/...
 0 10 * * * cd /path/to/aliexpress && /usr/bin/python3 tools/remind.py --days 5 --plain --quiet >> logs/remind.log 2>&1
 ```
 
+## `route_calc.py`
+
+Калькулятор landed cost по четырём маршрутам доставки с учётом пошлин, НДС и пересылки.
+Сопоставляет итоговую стоимость с качеством защиты возврата.
+
+```bash
+python3 tools/route_calc.py --price 40 --weight 0.6 --items 3
+python3 tools/route_calc.py --price 200 --weight 2.5 --currency USD
+python3 tools/route_calc.py --price 60 --items 2 --format json
+```
+
+⚠️ **`--items` — это число РАЗНЫХ товарных подпозиций, а не штук.**
+Пять одинаковых футболок = 1 подпозиция = €3. Футболка + кабель = 2 подпозиции = €6.
+После Регламента ЕС 2026/382 это главный драйвер стоимости на маршруте EU-forward.
+
+Учитывает: украинский лимит €150 (10% пошлина + 20% НДС на превышение),
+сбор ЕС €3/подпозиция, НДС Польши 23%, тарифы форвардеров PL→UA, двойную таможню.
+
 ## `listing_risk_score.py`
 
 Оценка листинга по возвратопригодности до покупки. Методика — `research/04`.
