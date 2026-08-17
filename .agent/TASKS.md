@@ -72,6 +72,14 @@
 | T-048 | Оплата как слой защиты: методы, валюты, обратный путь денег | DONE | arena-agent-sandbox-20260817-1330 |
 | T-049 | FX-учёт в order_ledger (потери на конвертации) | DONE | arena-agent-sandbox-20260817-1330 |
 | T-050 | evidence_pack — пакет доказательств для спора | DONE | arena-agent-sandbox-20260817-1330 |
+| T-051 | remind: контроль зависших возвратов (ARN, 28 дн.) | DONE | arena-agent-sandbox-20260817-1330 |
+| T-052 | order_ledger: команда today (сводка дня) | DONE | arena-agent-sandbox-20260817-1330 |
+| T-053 | import_orders: FX-колонки из выписки | DONE | arena-agent-sandbox-20260817-1330 |
+| T-054 | Дашборд: FX + алерт зависших возвратов | DONE | arena-agent-sandbox-20260817-1330 |
+| T-039 | Дашборд: токен-авторизация | DONE | arena-agent-sandbox-20260817-1330 |
+| T-055 | backup.sh покрывает data/evidence (без видео) | DONE | arena-agent-sandbox-20260817-1330 |
+| T-056 | bootstrap проверяет evidence_pack/import_orders | DONE | arena-agent-sandbox-20260817-1330 |
+| T-057 | Верификация TODO: Free Return 3/мес, PayPal UA | DONE | arena-agent-sandbox-20260817-1330 |
 
 ## Постоянный мониторинг (не закрывается)
 
