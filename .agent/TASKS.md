@@ -80,6 +80,8 @@
 | T-055 | backup.sh покрывает data/evidence (без видео) | DONE | arena-agent-sandbox-20260817-1330 |
 | T-056 | bootstrap проверяет evidence_pack/import_orders | DONE | arena-agent-sandbox-20260817-1330 |
 | T-057 | Верификация TODO: Free Return 3/мес, PayPal UA | DONE | arena-agent-sandbox-20260817-1330 |
+| T-058 | Telegram-напоминания под ключ (vault + cron/systemd) | DONE | arena-agent-sandbox-20260817-1330 |
+| T-059 | Инструкция проверок владельца (docs/OWNER_CHECKS.md) | DONE | arena-agent-sandbox-20260817-1330 |
 
 ## Постоянный мониторинг (не закрывается)
 

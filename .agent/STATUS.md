@@ -54,11 +54,24 @@
 | Дашборд: FX + авторизация (T-054/039) | ✅ v1, проверен curl | `tools/dashboard.py --token` |
 | Бэкап evidence + bootstrap-проверки (T-055/056) | ✅ готово | `scripts/backup.sh`, `scripts/bootstrap.sh` |
 | Верификация: Free Return 3/мес, PayPal UA (T-057) | ✅ выполнено | `research/12` |
+| Telegram под ключ (T-058) | ✅ готово | `docs/REMINDERS_SETUP.md`, `remind.py` (env) |
+| Проверки владельца (T-059) | ✅ готово, ждёт владельца | `docs/OWNER_CHECKS.md` |
 
 
 ---
 
 ## Журнал сессий
+
+### 2026-08-17 (сессия 12) · arena-agent-sandbox-20260817-1330 · ЗАВЕРШЕНО
+
+- **Владелец подтвердил продолжение («+»)** → закрыты два хвоста из меню предложений.
+- **T-058:** Telegram-напоминания под ключ — `docs/REMINDERS_SETUP.md` (BotFather →
+  chat_id → vault → cron/systemd за 5 шагов); remind.py подхватывает TG_TOKEN/TG_CHAT
+  из окружения, т.е. напрямую из `vault.sh export`.
+- **T-059:** `docs/OWNER_CHECKS.md` — 5 проверок, которые может сделать только владелец
+  (курс AliExpress, курс банка при возврате, лимит Free Return 3-или-5, заморозка
+  таймера спором, PayPal контрольно) с готовыми командами и форматом записи в research/12.
+- Тесты 60/60. Проект: 8 инструментов, 17 материалов research, 7 документов docs.
 
 ### 2026-08-17 (сессия 11) · arena-agent-sandbox-20260817-1330 · ЗАВЕРШЕНО
 
