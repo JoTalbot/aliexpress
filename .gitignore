@@ -8,3 +8,9 @@ venv/
 .DS_Store
 .idea/
 .vscode/
+
+data/
+logs/
+secrets/*.env
+!secrets/vault.template.env
+secrets/*.dec
