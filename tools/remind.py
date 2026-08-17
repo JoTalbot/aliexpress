@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import urllib.error
 import urllib.parse
@@ -178,7 +179,10 @@ def main() -> int:
     p.add_argument("--plain", action="store_true", help="без ANSI-цветов")
     p.add_argument("--quiet", action="store_true", help="молчать, если нечего сообщить")
     p.add_argument("--webhook", help="URL для POST JSON")
-    p.add_argument("--telegram-token"), p.add_argument("--telegram-chat")
+    p.add_argument("--telegram-token", default=os.environ.get("TG_TOKEN") or None,
+                   help="токен бота (или env TG_TOKEN, напр. из vault)")
+    p.add_argument("--telegram-chat", default=os.environ.get("TG_CHAT") or None,
+                   help="chat_id (или env TG_CHAT)")
     p.add_argument("--install-cron", action="store_true")
     a = p.parse_args()
 
