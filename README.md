@@ -17,9 +17,13 @@
 
 ```bash
 git clone https://github.com/JoTalbot/aliexpress.git && cd aliexpress
-export GITHUB_TOKEN=<токен>          # или export VAULT_PASSPHRASE=<пароль от vault>
-./scripts/bootstrap.sh
+export VAULT_PASSPHRASE='<мастер-пароль>'
+./scripts/backup.sh restore          # вернуть заказы и P&L
+eval "$(./scripts/vault.sh export)"  # загрузить секреты
+./scripts/bootstrap.sh               # настроить git, проверить тесты
 ```
+
+Подробно: **[docs/DISASTER_RECOVERY.md](docs/DISASTER_RECOVERY.md)**
 
 `bootstrap.sh` настроит git, подтянет изменения, проверит инструменты
 и покажет текущий статус проекта с порядком чтения.
@@ -81,6 +85,7 @@ python3 tools/import_orders.py --template          # образец CSV для �
 | `.agent/TASKS.md` | Бэклог и канбан |
 | `.agent/DECISIONS.md` | Журнал решений (ADR) |
 | `.agent/LOCKS.md` | Локи для параллельной работы |
+| `docs/DISASTER_RECOVERY.md` | Как восстановить всё в новом окружении |
 | `docs/PLAYBOOK.md` | Что делать при конкретной проблеме |
 | `docs/TEMPLATES_EN.md` | Шаблоны обращений на английском |
 | `docs/UNBOXING_CHECKLIST.md` | Печатный чек-лист распаковки |

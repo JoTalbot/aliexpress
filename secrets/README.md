@@ -27,6 +27,19 @@ AES-256-CBC, PBKDF2, 240000 итераций, соль. Стандартный O
 openssl enc -d -aes-256-cbc -pbkdf2 -iter 240000 -in secrets/vault.enc
 ```
 
+## Рабочие данные (не только секреты)
+
+`data/ledger.json` с заказами в git не попадает (`.gitignore`), поэтому для него
+есть отдельный шифрованный бэкап тем же паролем:
+
+```bash
+./scripts/backup.sh save      # зашифровать и запушить
+./scripts/backup.sh restore   # восстановить
+./scripts/backup.sh diff      # проверить актуальность
+```
+
+Полная инструкция: `docs/DISASTER_RECOVERY.md`
+
 ## Восстановление в новом окружении
 
 ```bash
