@@ -91,6 +91,7 @@
 | T-066 | claim → подсказка evidence_pack | DONE | arena-agent-sandbox-20260817-1330 |
 | T-067 | Архив журналов .agent (ADR-005) | DONE | arena-agent-sandbox-20260817-1330 |
 | T-068 | Карта живых тем сообществ: TG/форумы/блоги/GitHub | DONE | arena-agent-sandbox-20260817-1330 |
+| T-069 | Синхронизация выводов T-068 в research/03, 04, 09 | DONE | arena-agent-sandbox-20260817-1330 |
 
 ## Постоянный мониторинг (не закрывается)
 
