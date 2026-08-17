@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from datetime import date
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -27,6 +28,7 @@ from order_ledger import (  # noqa: E402
 )
 
 DB: Path = DB_DEFAULT
+TOKEN: str | None = None
 
 
 # --------------------------------------------------------------------------- data
@@ -44,6 +46,17 @@ def snapshot() -> dict:
     lost = sum(o.invested() for o in orders if o.status == "lost")
     claimed = [o for o in orders if o.status in ("claimed", "refunded")]
     claim_rate = (len(claimed) / len(orders) * 100) if orders else 0.0
+    fx_losses = [o.fx_loss() for o in orders if o.fx_loss() is not None]
+    fx_total = round(sum(fx_losses), 2) if fx_losses else 0.0
+
+    # Возврат одобрен > 28 дн. (≈20 раб., research/17 §2), зачисление не отмечено → ARN
+    refund_wait = []
+    for o in orders:
+        if (o.status == "refunded" and o.refund_date
+                and o.refund_amount > 0 and o.card_refunded <= 0):
+            age = (date.today() - d(o.refund_date)).days
+            if age > 28:
+                refund_wait.append({"id": o.order_id, "title": o.title, "age": age})
 
     rows = []
     for o in sorted(orders, key=lambda x: (x.days_left() is None, x.days_left() or 0)):
@@ -64,6 +77,9 @@ def snapshot() -> dict:
             "claim_reason": REASONS.get(o.claim_reason, o.claim_reason),
             "claim_age": age, "pending": round(o.pending_recovery(), 2),
             "gap": round(o.capital_gap(), 2),
+            "card_charged": round(o.card_charged, 2), "card_refunded": round(o.card_refunded, 2),
+            "card_currency": o.card_currency,
+            "fx_loss": round(o.fx_loss(), 2) if o.fx_loss() is not None else None,
             "customer": o.customer, "notes": o.notes,
             "shipped": o.shipped, "delivered": o.delivered, "confirmed": o.confirmed,
         })
@@ -89,9 +105,11 @@ def snapshot() -> dict:
             "gap": round(gap, 2), "lost": round(lost, 2),
             "margin": round(net / invested * 100, 1) if invested else 0.0,
             "claim_rate": round(claim_rate, 1),
+            "fx_loss_total": fx_total,
         },
         "orders": rows,
         "routes": by_route,
+        "refund_wait": refund_wait,
         "meta": {"routes": ROUTES, "reasons": REASONS, "today": date.today().isoformat()},
     }
 
@@ -224,6 +242,7 @@ function render(){
   ["Ожидается",f(k.pending),k.pending>0?"warn":"mut","по спорам"],
   ["Разрыв оборотки",f(k.gap),k.gap>0?"neg":"mut","клиенту вернул"],
   ["Доля споров",k.claim_rate+"%",k.claim_rate>20?"neg":(k.claim_rate>10?"warn":"pos"),"от заказов"],
+  ["FX-потери",f(k.fx_loss_total),k.fx_loss_total>0?"neg":"mut","на конвертации"],
   ["Потери",f(k.lost),k.lost>0?"neg":"mut","списано"]];
  document.getElementById("kpi").innerHTML=kp.map(function(c){
   return '<div class="card"><div class="lbl">'+c[0]+'</div><div class="val '+c[2]+'">'+c[1]+
@@ -236,6 +255,10 @@ function render(){
  if(k.gap>0)al.push("<b>Разрыв оборотки "+f(k.gap)+".</b> Возвращено клиентам больше, чем получено от поставщиков.");
  var stale=DATA.orders.filter(function(o){return o.claim_age!=null&&o.claim_age>30&&o.status=="claimed"});
  if(stale.length)al.push("<b>"+stale.length+" спор(ов) висят дольше 30 дней.</b> Пора эскалировать к платформе.");
+ if(DATA.refund_wait&&DATA.refund_wait.length)al.push("<b>"+DATA.refund_wait.length+
+  " возврат(ов) одобрены &gt;28 дн. назад, зачисление не отмечено:</b> "+
+  DATA.refund_wait.map(function(w){return w.id+" ("+w.age+" дн.)"}).join(", ")+
+  ". Проверь выписку; денег нет — запроси ARN у поддержки (research/17).");
  document.getElementById("alerts").innerHTML=al.map(function(a){
   return '<div class="alert">'+a+'</div>'}).join("");
 
@@ -265,6 +288,9 @@ function render(){
      (o.claim_reason?'<div><span class="k">Претензия:</span>'+esc(o.claim_reason)+
        (o.claim_age!=null?' ('+o.claim_age+' дн.)':'')+'</div>':'')+
      (o.customer_refund>0?'<div><span class="k">Клиенту вернул:</span>'+f(o.customer_refund)+'</div>':'')+
+     (o.card_charged>0?'<div><span class="k">Списано с карты:</span>'+f(o.card_charged)+' '+esc(o.card_currency)+'</div>':'')+
+     (o.card_refunded>0?'<div><span class="k">Пришло на карту:</span>'+f(o.card_refunded)+' '+esc(o.card_currency)+'</div>':'')+
+     (o.fx_loss!=null?'<div><span class="k">FX-потеря:</span><span class="'+(o.fx_loss>0?'neg':'pos')+'">'+f(o.fx_loss)+' '+esc(o.card_currency)+'</span></div>':'')+
      '</div><div>'+
      (o.notes.length?'<div class="k" style="margin-bottom:4px">Заметки:</div>'+
        o.notes.map(function(n){return '<div class="note">'+esc(n)+'</div>'}).join(""):'<span class="mut">Заметок нет</span>')+
@@ -274,6 +300,8 @@ function render(){
      '<button class="sec" onclick="event.stopPropagation();mark(\\''+o.id+'\\',\\'confirm\\')">Подтвердить получение</button>'+
      '<button class="sec" onclick="event.stopPropagation();claim(\\''+o.id+'\\')">Открыть спор</button>'+
      '<button class="sec" onclick="event.stopPropagation();refund(\\''+o.id+'\\')">Возврат получен</button>'+
+     '<button class="sec" onclick="event.stopPropagation();charged(\\''+o.id+'\\')">Списание с карты</button>'+
+     '<button class="sec" onclick="event.stopPropagation();cardref(\\''+o.id+'\\')">Пришло на карту</button>'+
      '<button class="sec" onclick="event.stopPropagation();custref(\\''+o.id+'\\')">Вернул клиенту</button>'+
      '<button class="sec" onclick="event.stopPropagation();note(\\''+o.id+'\\')">Заметка</button>'+
      '<button class="sec" onclick="event.stopPropagation();mark(\\''+o.id+'\\',\\'close\\')">Закрыть</button>'+
@@ -324,6 +352,13 @@ function refund(id){var a=prompt("Сумма возврата от постав�
 function custref(id){var a=prompt("Сумма возврата клиенту:","");if(!a)return;
  api("/api/customer-refund",{id:id,amount:parseFloat(a)},function(){load();toast("Записано")})}
 
+function charged(id){var a=prompt("Списано с карты по выписке (в валюте карты):","");if(!a)return;
+ var c=prompt("Валюта карты:","UAH")||"UAH";
+ api("/api/charged",{id:id,amount:parseFloat(a),currency:c},function(){load();toast("Списание записано")})}
+
+function cardref(id){var a=prompt("Зачислено на карту по выписке (в валюте карты):","");if(!a)return;
+ api("/api/refund-received",{id:id,amount:parseFloat(a)},function(){load();toast("Зачисление записано")})}
+
 function note(id){var t=prompt("Заметка:","");if(!t)return;
  api("/api/note",{id:id,text:t},function(){load();toast("Заметка добавлена")})}
 
@@ -343,11 +378,32 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *a):  # тише
         pass
 
-    def _send(self, code: int, body: bytes, ctype: str) -> None:
+    # ---- авторизация (T-039): токен через --token или env DASHBOARD_TOKEN ----
+    def _authorized(self) -> bool:
+        if not TOKEN:
+            return True  # локальный режим без токена — как раньше
+        qs = parse_qs(urlparse(self.path).query)
+        if qs.get("token", [None])[0] == TOKEN:
+            return True
+        cookie = self.headers.get("Cookie", "") or ""
+        return f"dash_token={TOKEN}" in cookie
+
+    def _deny(self) -> None:
+        body = ("<!DOCTYPE html><html lang=ru><meta charset=utf-8>"
+                "<body style='font-family:sans-serif;background:#0f1218;color:#e6e9ef;"
+                "display:flex;align-items:center;justify-content:center;height:100vh'>"
+                "<div><h2>401 — нужен токен</h2>"
+                "<p>Открой дашборд как <code>/?token=&lt;твой токен&gt;</code> — "
+                "дальше токен запомнится в cookie.</p></div></body></html>").encode("utf-8")
+        self._send(401, body, "text/html; charset=utf-8")
+
+    def _send(self, code: int, body: bytes, ctype: str, extra: dict | None = None) -> None:
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
+        for k, v in (extra or {}).items():
+            self.send_header(k, v)
         self.end_headers()
         self.wfile.write(body)
 
@@ -356,9 +412,14 @@ class Handler(BaseHTTPRequestHandler):
                    "application/json; charset=utf-8")
 
     def do_GET(self) -> None:
+        if not self._authorized():
+            return self._deny()
         path = urlparse(self.path).path
         if path in ("/", "/index.html"):
-            self._send(200, PAGE.encode("utf-8"), "text/html; charset=utf-8")
+            extra = None
+            if TOKEN:  # токен пришёл в query → закрепить в cookie
+                extra = {"Set-Cookie": f"dash_token={TOKEN}; Path=/; HttpOnly; SameSite=Strict"}
+            self._send(200, PAGE.encode("utf-8"), "text/html; charset=utf-8", extra)
         elif path == "/api/data":
             self._json(snapshot())
         elif path == "/api/export":
@@ -377,6 +438,8 @@ class Handler(BaseHTTPRequestHandler):
             self._json({"error": "not found"}, 404)
 
     def do_POST(self) -> None:
+        if not self._authorized():
+            return self._json({"error": "unauthorized"}, 401)
         path = urlparse(self.path).path
         try:
             n = int(self.headers.get("Content-Length", 0))
@@ -426,6 +489,13 @@ class Handler(BaseHTTPRequestHandler):
                     o.customer_refunded = float(data.get("amount") or 0)
                     o.customer_refund_date = data.get("date") or today
                     o.notes.append(f"{o.customer_refund_date}: возврат клиенту {o.customer_refunded:.2f}")
+                elif path == "/api/charged":
+                    o.card_charged = float(data.get("amount") or 0)
+                    o.card_currency = (data.get("currency") or "UAH").strip() or "UAH"
+                    o.notes.append(f"{today}: списано с карты {o.card_charged:.2f} {o.card_currency}")
+                elif path == "/api/refund-received":
+                    o.card_refunded = float(data.get("amount") or 0)
+                    o.notes.append(f"{today}: возврат на карту {o.card_refunded:.2f} {o.card_currency}")
                 elif path == "/api/note":
                     o.notes.append(f"{today}: {data.get('text', '')}")
                 elif path == "/api/close":
@@ -441,16 +511,24 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main() -> None:
-    global DB
+    global DB, TOKEN
     p = argparse.ArgumentParser(description="Веб-дашборд Order Ledger")
     p.add_argument("--port", type=int, default=8080)
     p.add_argument("--host", default="0.0.0.0")
     p.add_argument("--db", type=Path, default=DB_DEFAULT)
+    p.add_argument("--token", default=os.environ.get("DASHBOARD_TOKEN") or None,
+                   help="токен доступа (или env DASHBOARD_TOKEN); без него — режим без авторизации")
     a = p.parse_args()
     DB = a.db
+    TOKEN = a.token
     DB.parent.mkdir(parents=True, exist_ok=True)
     srv = ThreadingHTTPServer((a.host, a.port), Handler)
     print(f"Дашборд: http://{a.host}:{a.port}  (данные: {DB})")
+    if TOKEN:
+        print(f"  Авторизация включена: открой /?token=<токен> (значение не печатаем)")
+    else:
+        print("  ⚠ Без токена — только для локального запуска. "
+              "Для удалённого доступа: --token или env DASHBOARD_TOKEN (хранить в vault).")
     try:
         srv.serve_forever()
     except KeyboardInterrupt:
