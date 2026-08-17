@@ -26,3 +26,12 @@ git pull --rebase --quiet origin main || { echo "Конфликт при rebase 
 git push --quiet origin main
 echo "✓ Сохранено и запушено: $MSG"
 git log --oneline -1
+
+# T-064: ledger.json менялся после последнего шифрованного бэкапа? Напомнить.
+LEDGER="data/ledger.json"; BACKUP="secrets/data-backup.tar.gz.enc"
+if [[ -f "$LEDGER" ]]; then
+  if [[ ! -f "$BACKUP" || "$LEDGER" -nt "$BACKUP" ]]; then
+    echo "⚠ data/ledger.json новее бэкапа (save.sh его НЕ покрывает — он в .gitignore)."
+    echo "  Сохрани данные: ./scripts/backup.sh save"
+  fi
+fi
