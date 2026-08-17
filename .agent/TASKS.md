@@ -82,6 +82,14 @@
 | T-057 | Верификация TODO: Free Return 3/мес, PayPal UA | DONE | arena-agent-sandbox-20260817-1330 |
 | T-058 | Telegram-напоминания под ключ (vault + cron/systemd) | DONE | arena-agent-sandbox-20260817-1330 |
 | T-059 | Инструкция проверок владельца (docs/OWNER_CHECKS.md) | DONE | arena-agent-sandbox-20260817-1330 |
+| T-060 | Мультивалютный P&L (раздельные итоги, предупреждение) | DONE | arena-agent-sandbox-20260817-1330 |
+| T-061 | Атомарная запись ledger + advisory-лок | DONE | arena-agent-sandbox-20260817-1330 |
+| T-062 | CI: GitHub Actions на каждый push | DONE | arena-agent-sandbox-20260817-1330 |
+| T-063 | HTTP-тесты дашборда (авторизация, API, FX) | DONE | arena-agent-sandbox-20260817-1330 |
+| T-064 | save.sh напоминает о бэкапе ledger | DONE | arena-agent-sandbox-20260817-1330 |
+| T-065 | Деприкация dispute_deadline_tracker | DONE | arena-agent-sandbox-20260817-1330 |
+| T-066 | claim → подсказка evidence_pack | DONE | arena-agent-sandbox-20260817-1330 |
+| T-067 | Архив журналов .agent (ADR-005) | DONE | arena-agent-sandbox-20260817-1330 |
 
 ## Постоянный мониторинг (не закрывается)
 
