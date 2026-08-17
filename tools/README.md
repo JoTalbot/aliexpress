@@ -107,6 +107,20 @@ python3 tools/route_calc.py --price 60 --items 2 --format json
 Учитывает: украинский лимит €150 (10% пошлина + 20% НДС на превышение),
 сбор ЕС €3/подпозиция, НДС Польши 23%, тарифы форвардеров PL→UA, двойную таможню.
 
+## `import_orders.py`
+
+Импорт заказов из CSV. Сам определяет колонки (RU/EN/UA), форматы дат и разделитель.
+
+```bash
+python3 tools/import_orders.py --template            # образец CSV
+python3 tools/import_orders.py --file orders.csv --dry-run
+python3 tools/import_orders.py --file orders.csv
+python3 tools/import_orders.py --file o.csv --map "Номер заказа=order_id"
+```
+
+Идемпотентен: существующие заказы пропускаются (`--update` чтобы обновить).
+Обязательны только `order_id` и `title`. Нераспознанные даты — в предупреждения.
+
 ## `listing_risk_score.py`
 
 Оценка листинга по возвратопригодности до покупки. Методика — `research/04`.
