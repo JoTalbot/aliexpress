@@ -136,3 +136,25 @@ python3 listing_risk_score.py --interactive --dump > listing.json
 ```
 
 Шкала: ≥50 низкий риск · 20–49 приемлемо · 0–19 повышенный · <0 высокий.
+
+## `evidence_pack.py`
+
+Подготовка пакета доказательств для спора по **реальной** проблеме (T-050).
+Чек-лист под причину, структура папок, ссылка на шаблон из `docs/TEMPLATES_EN.md`,
+проверка дедлайна из ledger. Границы — `docs/SCOPE_AND_ETHICS.md`.
+
+```bash
+python3 tools/evidence_pack.py --id AE-1001              # причина из заявки в ledger
+python3 tools/evidence_pack.py --reason damaged          # без ledger
+python3 tools/evidence_pack.py --id AE-1001 --make-dirs  # создать data/evidence/AE-1001/
+```
+
+## FX-учёт в `order_ledger.py` (T-049)
+
+Факты по банковской выписке → потери на конвертации при возвратах (`research/17`):
+
+```bash
+python3 tools/order_ledger.py charged --id AE-1001 --amount 520.35 --currency UAH
+python3 tools/order_ledger.py refund-received --id AE-1001 --amount 498.10
+python3 tools/order_ledger.py fx     # отчёт: курс покупки, потери, доля от оборота
+```

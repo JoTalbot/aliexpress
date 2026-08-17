@@ -30,6 +30,7 @@ import listing_risk_score as lrs  # noqa: E402
 import route_calc as rc  # noqa: E402
 import remind  # noqa: E402
 import import_orders as imp  # noqa: E402
+import evidence_pack as ep  # noqa: E402
 
 
 def days_ago(n: int) -> str:
@@ -325,6 +326,51 @@ class TestImport(unittest.TestCase):
         m = imp.build_mapping(["Order ID", "Product Name", "Price"], {})
         self.assertEqual(m.get("order_id"), "Order ID")
         self.assertEqual(m.get("title"), "Product Name")
+
+
+class TestEvidencePack(unittest.TestCase):
+    """T-050: пакет доказательств. Ломать нечего страшнее, чем маппинг причин."""
+
+    def test_every_ledger_reason_has_a_pack(self):
+        # Новая причина в REASONS без пакета доказательств — регрессия.
+        self.assertEqual(set(ol.REASONS), set(ep.PACKS))
+
+    def test_template_numbers_exist_in_templates_md(self):
+        # Шаблон, на который ссылается пакет, обязан существовать в TEMPLATES_EN.md.
+        text = (ROOT / "docs" / "TEMPLATES_EN.md").read_text(encoding="utf-8")
+        headers = {int(line.split(".")[0].lstrip("# ").strip())
+                   for line in text.splitlines()
+                   if line.startswith("## ") and line[3].isdigit()}
+        for reason, (_, template_no, _) in ep.PACKS.items():
+            self.assertIn(template_no, headers, f"{reason} → шаблон №{template_no} не найден")
+
+    def test_report_warns_when_window_closed(self):
+        o = Order(order_id="X", title="t", shipped=days_ago(40),
+                  delivered=days_ago(30), confirmed=days_ago(30))
+        report = ep.build_report("damaged", o)
+        self.assertIn("ОКНО ЗАКРЫТО", report)
+
+    def test_report_flags_critical_deadline(self):
+        o = Order(order_id="X", title="t", shipped=days_ago(20), delivered=days_ago(13))
+        report = ep.build_report("damaged", o)
+        self.assertIn("открывай спор СЕГОДНЯ", report)
+
+    def test_report_contains_scope_note(self):
+        # Этическая рамка обязана присутствовать в каждом плане.
+        for reason in ep.PACKS:
+            self.assertIn("реальной проблемы", ep.build_report(reason))
+
+    def test_make_dirs_creates_structure(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = ep.make_dirs("AE-TEST", "damaged", root=Path(tmp))
+            self.assertTrue((base / "02-unboxing").is_dir())
+            self.assertTrue((base / "01-label").is_dir())
+
+    def test_unboxing_video_required_for_physical_claims(self):
+        # Ключевое доказательство (research/02): без видео одним дублем
+        # физические претензии проигрываются.
+        for reason in ("damaged", "wrong-item", "shortage"):
+            self.assertIn("ОДНИМ ДУБЛЕМ", ep.build_report(reason))
 
 
 class TestScopeGuard(unittest.TestCase):
