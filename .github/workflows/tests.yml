@@ -1,0 +1,23 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Регрессионные тесты (stdlib, без зависимостей)
+        run: python3 tests/test_tools.py
+      - name: Синтаксис всех инструментов
+        run: |
+          for f in tools/*.py; do python3 -m py_compile "$f"; done
+      - name: Секреты не в репозитории
+        run: |
+          ! grep -rE "ghp_[A-Za-z0-9]{20,}" --include="*.py" --include="*.md" --include="*.sh" . || exit 1
