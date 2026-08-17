@@ -51,6 +51,44 @@ python3 tools/dashboard.py --port 9000 --db data/ledger.json
 
 Данные пишутся сразу в `data/ledger.json`, автообновление раз в 30 секунд.
 
+## `remind.py`
+
+Напоминания о горящих дедлайнах — для запуска по расписанию.
+Главный автоматизируемый риск: пропущенное окно спора закрывает возврат навсегда.
+
+```bash
+python3 tools/remind.py                 # отчёт в терминал
+python3 tools/remind.py --days 5        # порог срочности
+python3 tools/remind.py --quiet         # молчит, если всё спокойно (для cron)
+python3 tools/remind.py --format json   # для интеграций
+python3 tools/remind.py --install-cron  # готовая строка для crontab
+```
+
+Что отслеживает:
+- 🔴 просроченные окна и критичные (≤3 дней);
+- 🟡 приближающиеся дедлайны;
+- 🟡 споры, висящие дольше 30 дней — пора эскалировать к платформе;
+- ℹ доставленные, но не подтверждённые заказы (это правильное состояние — напоминание проверить товар);
+- суммы: ожидается от поставщиков, разрыв оборотки.
+
+**Коды возврата** для мониторинга: `0` — чисто, `1` — есть срочное, `2` — есть просроченное.
+
+```bash
+# уведомление в systemd/desktop
+python3 tools/remind.py --quiet || notify-send "AliExpress: горит дедлайн"
+
+# в Telegram
+python3 tools/remind.py --quiet --telegram-token "$TG_TOKEN" --telegram-chat "$TG_CHAT"
+
+# в Slack/Discord/свой сервис
+python3 tools/remind.py --quiet --webhook https://hooks.example.com/...
+```
+
+Ежедневный запуск (crontab -e):
+```
+0 10 * * * cd /path/to/aliexpress && /usr/bin/python3 tools/remind.py --days 5 --plain --quiet >> logs/remind.log 2>&1
+```
+
 ## `listing_risk_score.py`
 
 Оценка листинга по возвратопригодности до покупки. Методика — `research/04`.
