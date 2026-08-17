@@ -94,6 +94,9 @@
 | T-069 | Синхронизация выводов T-068 в research/03, 04, 09 | DONE | arena-agent-sandbox-20260817-1330 |
 | T-070 | README освежён: CI-бейдж, инструменты, факты 2026 | DONE | arena-agent-sandbox-20260817-1330 |
 | T-071 | Прогон T-046: официальный PR AliExpress 17.08.2026 (США) | DONE | arena-agent-sandbox-20260817-1330 |
+| T-072 | Экономика Choice (research/19) | DONE | arena-agent-sandbox-20260817-1330 |
+| T-073 | Temu/Shein как каналы дропшиппинга (research/20) | DONE | arena-agent-sandbox-20260817-1330 |
+| T-074 | Налоги дропшиппинга UA 2026 (research/21) | DONE | arena-agent-sandbox-20260817-1330 |
 
 ## Постоянный мониторинг (не закрывается)
 
