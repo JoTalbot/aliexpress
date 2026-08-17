@@ -17,6 +17,9 @@ Order Ledger — учёт заказов AliExpress для покупателя 
     python3 order_ledger.py delivered --id AE-1001 --date 2026-08-18
     python3 order_ledger.py claim --id AE-1001 --reason damaged --ask 12.40
     python3 order_ledger.py refunded --id AE-1001 --amount 12.40 --date 2026-09-02
+    python3 order_ledger.py charged --id AE-1001 --amount 520.35 --currency UAH
+    python3 order_ledger.py refund-received --id AE-1001 --amount 498.10
+    python3 order_ledger.py fx
     python3 order_ledger.py list
     python3 order_ledger.py deadlines --days 7
     python3 order_ledger.py pnl
@@ -86,6 +89,10 @@ class Order:
     refund_date: str | None = None
     customer_refunded: float = 0.0
     customer_refund_date: str | None = None
+    # ---- FX: факты по карте (research/17) ----
+    card_currency: str = "UAH"     # валюта карты, которой платили
+    card_charged: float = 0.0      # факт списания с карты (по выписке)
+    card_refunded: float = 0.0     # факт зачисления возврата на карту (по выписке)
     notes: list[str] = field(default_factory=list)
 
     # ---- дедлайны ----
@@ -143,6 +150,25 @@ class Order:
     def capital_gap(self) -> float:
         """Разрыв оборотки: вернул клиенту, от поставщика ещё не получил."""
         return max(0.0, self.customer_refunded - self.refund_amount)
+
+    # ---- FX (research/17): потери на конвертации при возврате ----
+    def purchase_rate(self) -> float | None:
+        """Фактический курс покупки: единиц валюты карты за единицу валюты заказа."""
+        if self.card_charged > 0 and self.invested() > 0:
+            return self.card_charged / self.invested()
+        return None
+
+    def fx_loss(self) -> float | None:
+        """Потеря на конвертации при возврате, в валюте карты.
+
+        Сколько возврат «должен был» принести по курсу покупки минус сколько
+        реально пришло на карту. Положительное значение = потеря.
+        Считается только когда известны оба факта по выписке.
+        """
+        rate = self.purchase_rate()
+        if rate is None or self.refund_amount <= 0 or self.card_refunded <= 0:
+            return None
+        return self.refund_amount * rate - self.card_refunded
 
 
 def load(db: Path) -> list[Order]:
@@ -214,6 +240,18 @@ def main() -> None:
     cr.add_argument("--amount", type=float, required=True)
     cr.add_argument("--date", default=date.today().isoformat())
 
+    ch = s.add_parser("charged", help="факт списания с карты по выписке")
+    ch.add_argument("--id", required=True)
+    ch.add_argument("--amount", type=float, required=True)
+    ch.add_argument("--currency", default="UAH")
+
+    rr = s.add_parser("refund-received", help="факт зачисления возврата на карту по выписке")
+    rr.add_argument("--id", required=True)
+    rr.add_argument("--amount", type=float, required=True)
+    rr.add_argument("--date", default=date.today().isoformat())
+
+    s.add_parser("fx", help="отчёт по конвертационным потерям")
+
     n = s.add_parser("note"); n.add_argument("--id", required=True); n.add_argument("--text", required=True)
     cl = s.add_parser("close"); cl.add_argument("--id", required=True)
     lo = s.add_parser("lost"); lo.add_argument("--id", required=True)
@@ -272,6 +310,47 @@ def main() -> None:
         save(args.db, orders)
         print(f"✓ Клиенту возвращено {args.amount:.2f} | разрыв оборотки: {o.capital_gap():.2f}")
 
+    elif args.cmd == "charged":
+        o = find(orders, args.id)
+        o.card_charged, o.card_currency = args.amount, args.currency
+        o.notes.append(f"{date.today().isoformat()}: списано с карты {args.amount:.2f} {args.currency}")
+        save(args.db, orders)
+        rate = o.purchase_rate()
+        print(f"✓ Списание {args.amount:.2f} {args.currency}"
+              + (f" | курс покупки: {rate:.4f} {args.currency}/{o.currency}" if rate else ""))
+
+    elif args.cmd == "refund-received":
+        o = find(orders, args.id)
+        o.card_refunded = args.amount
+        o.notes.append(f"{args.date}: возврат на карту {args.amount:.2f} {o.card_currency}")
+        save(args.db, orders)
+        loss = o.fx_loss()
+        print(f"✓ На карту пришло {args.amount:.2f} {o.card_currency}")
+        if loss is not None:
+            sign = "потеря" if loss > 0 else "выигрыш"
+            print(f"  FX-{sign} на конвертации: {abs(loss):.2f} {o.card_currency} (research/17 §3)")
+
+    elif args.cmd == "fx":
+        rows = [o for o in orders if o.fx_loss() is not None]
+        print("=" * 58); print("FX: ПОТЕРИ НА КОНВЕРТАЦИИ ПРИ ВОЗВРАТАХ"); print("=" * 58)
+        if not rows:
+            print("Нет заказов с полной парой фактов (charged + refund-received).")
+            print("Вноси суммы по выписке: charged / refund-received.")
+        else:
+            total = 0.0
+            for o in rows:
+                loss = o.fx_loss(); total += loss
+                print(f"  {o.order_id:<12} {o.title[:20]:<20} "
+                      f"курс {o.purchase_rate():.4f} | возврат {o.refund_amount:.2f} {o.currency} "
+                      f"→ {o.card_refunded:.2f} {o.card_currency} | FX {loss:+.2f}")
+            cur = rows[0].card_currency
+            print("-" * 58)
+            print(f"  ИТОГО FX-потери: {total:+.2f} {cur}")
+            charged = sum(o.card_charged for o in rows)
+            if charged:
+                print(f"  Доля от оборота по этим заказам: {total / charged * 100:.2f}%")
+            print("\n  Снижение потерь: USD-карта + валюта USD на сайте (research/17 §3.3).")
+
     elif args.cmd == "note":
         o = find(orders, args.id)
         o.notes.append(f"{date.today().isoformat()}: {args.text}")
@@ -290,6 +369,8 @@ def main() -> None:
         dl, why = o.deadline()
         print(f"\nДедлайн: {dl} ({why}) | осталось: {o.days_left()} дн. | {o.urgency()}")
         print(f"Вложено: {o.invested():.2f} | итог: {o.net():+.2f} | к возврату: {o.pending_recovery():.2f}")
+        if o.fx_loss() is not None:
+            print(f"FX-потеря на конвертации: {o.fx_loss():+.2f} {o.card_currency}")
 
     elif args.cmd == "deadlines":
         hot = [o for o in orders if o.status in ("open", "claimed")
@@ -326,6 +407,10 @@ def main() -> None:
             print(f"  Маржинальность:              {net / inv * 100:>9.1f}%")
         rate = len([o for o in orders if o.status in ("claimed", "refunded")]) / len(orders) * 100 if orders else 0
         print(f"  Доля заказов с претензией:   {rate:>9.1f}%")
+        fx_rows = [o for o in orders if o.fx_loss() is not None]
+        if fx_rows:
+            fx_total = sum(o.fx_loss() for o in fx_rows)
+            print(f"  FX-потери на конвертации:    {fx_total:>10.2f} {fx_rows[0].card_currency} (см. команду fx)")
         if rate > 20:
             print("\n  ⚠ Высокая доля споров повышает риск ограничений на аккаунте.")
             print("    См. research/06 — платформа отслеживает поведенческие паттерны.")

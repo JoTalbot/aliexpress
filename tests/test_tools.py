@@ -128,6 +128,55 @@ class TestMoney(unittest.TestCase):
         self.assertEqual(o.pending_recovery(), 0.0)
 
 
+class TestFX(unittest.TestCase):
+    """FX-учёт (T-049, research/17): потери на конвертации при возврате.
+
+    Сценарий: заказ $10 (cost 10, ship 0), с гривневой карты списано 420 UAH
+    (курс покупки 42.0). Возврат $10, но на карту пришло 405 UAH → потеря 15 UAH.
+    """
+
+    def _order(self, **kw):
+        base = dict(order_id="FX-1", title="t", cost=10.0, ship_cost=0.0)
+        base.update(kw)
+        return Order(**base)
+
+    def test_purchase_rate_from_statement_facts(self):
+        o = self._order(card_charged=420.0)
+        self.assertAlmostEqual(o.purchase_rate(), 42.0)
+
+    def test_fx_loss_positive_when_refund_shrinks(self):
+        o = self._order(card_charged=420.0, refund_amount=10.0, card_refunded=405.0)
+        self.assertAlmostEqual(o.fx_loss(), 15.0)
+
+    def test_fx_gain_is_negative_loss(self):
+        o = self._order(card_charged=420.0, refund_amount=10.0, card_refunded=430.0)
+        self.assertAlmostEqual(o.fx_loss(), -10.0)
+
+    def test_usd_card_one_to_one_no_loss(self):
+        # Эталон из research/17 §3.3: USD-карта + USD на сайте → возврат 1:1.
+        o = self._order(card_currency="USD", card_charged=10.0,
+                        refund_amount=10.0, card_refunded=10.0)
+        self.assertAlmostEqual(o.fx_loss(), 0.0)
+
+    def test_no_facts_no_fx(self):
+        # Без пары фактов по выписке FX не считается (None, а не 0 или мусор).
+        self.assertIsNone(self._order().fx_loss())
+        self.assertIsNone(self._order(card_charged=420.0).fx_loss())
+        self.assertIsNone(self._order(refund_amount=10.0, card_refunded=405.0).fx_loss())
+
+    def test_zero_invested_no_rate(self):
+        # Деление на ноль исключено по построению.
+        o = Order(order_id="FX-0", title="t", cost=0.0, card_charged=420.0)
+        self.assertIsNone(o.purchase_rate())
+
+    def test_old_records_without_fx_fields_still_load(self):
+        # Обратная совместимость: старый ledger.json без FX-полей читается.
+        old = {"order_id": "OLD-1", "title": "t", "cost": 5.0}
+        o = Order(**old)
+        self.assertEqual(o.card_charged, 0.0)
+        self.assertIsNone(o.fx_loss())
+
+
 class TestPersistence(unittest.TestCase):
 
     def test_roundtrip(self):
