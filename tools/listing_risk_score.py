@@ -44,6 +44,12 @@ class Listing:
     generic_listing: bool = False
     repeated_complaints: bool = False
     restricted_category: bool = False
+    # --- поля, добавленные по итогам T-011 и T-041 ---
+    account_clean: bool = True          # мало споров, хорошая история покупателя
+    account_high_tier: bool = False     # высокий статус покупателя
+    ships_from_eu: bool = False         # отгрузка из ЕС (сборы за строку декларации)
+    declaration_lines: int = 1          # разных товарных подпозиций в заказе
+    seller_responds: bool = True        # продавец отвечает в чате до покупки
 
 
 def score(x: Listing) -> tuple[int, list[tuple[str, int, str]]]:
@@ -75,6 +81,12 @@ def score(x: Listing) -> tuple[int, list[tuple[str, int, str]]]:
         f.append(("Размерная таблица/спека", +5, "лишает продавца аргумента в споре"))
     if x.chargeback_payment:
         f.append(("Оплата с чарджбэком", +5, "внешний рычаг эскалации"))
+    if x.account_high_tier:
+        f.append(("Высокий статус аккаунта", +12, "кейсы: автоодобрение спора за минуты"))
+    if x.account_clean:
+        f.append(("Чистая история споров", +10, "модель доверия одобряет быстрее"))
+    if x.seller_responds:
+        f.append(("Продавец отвечает в чате", +5, "письменные обещания = доказательство"))
 
     # --- факторы риска ---
     if x.store_age_months < 6:
@@ -95,6 +107,14 @@ def score(x: Listing) -> tuple[int, list[tuple[str, int, str]]]:
         f.append(("Дорого без Free Return", -20, "при споре потребуют отправку в Китай"))
     if not x.chargeback_payment:
         f.append(("Нет метода с чарджбэком", -15, "нет внешнего рычага"))
+    if not x.account_clean:
+        f.append(("Много споров в истории", -25, "отказы даже по честным заявкам (research/09)"))
+    if x.ships_from_eu and x.declaration_lines > 1:
+        fee = 3 * x.declaration_lines
+        f.append((f"ЕС: {x.declaration_lines} подпозиций", -10,
+                  f"сбор €{fee} за строки декларации, невозвратный"))
+    elif x.ships_from_eu:
+        f.append(("Отгрузка из ЕС", -5, "€3/строка с 01.07.2026, невозвратно"))
 
     return sum(w for _, w, _ in f), f
 
@@ -141,6 +161,14 @@ def report(x: Listing) -> str:
         tips.append("Обезличенный листинг: описание не отражает товар, спор по SNAD почти невозможен.")
     if not x.photo_reviews:
         tips.append("Нет отзывов с фото — реальный вид товара неизвестен.")
+    if not x.account_clean:
+        tips.append("История споров портит шансы: не спорить по мелочи, беречь лимит доверия.")
+    if x.free_return:
+        tips.append("Free Return: готовься ВЕРНУТЬ товар — «оставить и получить деньги» "
+                    "с этим бейджем почти не бывает (research/09).")
+    if x.price > 100:
+        tips.append("Дорогая позиция: планируй сценарий физического возврата, "
+                    "компромисса без отправки почти не предлагают.")
     if tips:
         out.append("\nЧТО СДЕЛАТЬ:")
         out.extend(f"  • {t}" for t in tips)
@@ -178,6 +206,11 @@ def interactive() -> Listing:
         generic_listing=ask_bool("Листинг обезличенный (generic-фото, коды в вариантах)?"),
         repeated_complaints=ask_bool("В отзывах повторяется одна и та же претензия?"),
         restricted_category=ask_bool("Батареи / жидкости / аэрозоли?"),
+        account_clean=ask_bool("История споров чистая (споришь редко)?", True),
+        account_high_tier=ask_bool("Высокий статус аккаунта?"),
+        seller_responds=ask_bool("Продавец отвечает на вопросы в чате?", True),
+        ships_from_eu=ask_bool("Отгрузка из ЕС?"),
+        declaration_lines=int(ask_num("Разных товарных подпозиций в заказе", 1)),
     )
 
 
@@ -199,6 +232,12 @@ def main() -> None:
     p.add_argument("--generic", action="store_true")
     p.add_argument("--repeated-complaints", action="store_true")
     p.add_argument("--restricted", action="store_true")
+    p.add_argument("--dirty-account", action="store_true",
+                   help="в истории много споров/возвратов")
+    p.add_argument("--high-tier", action="store_true", help="высокий статус аккаунта")
+    p.add_argument("--from-eu", action="store_true", help="отгрузка из ЕС")
+    p.add_argument("--lines", type=int, default=1, help="разных товарных подпозиций")
+    p.add_argument("--seller-silent", action="store_true", help="продавец не отвечает в чате")
     p.add_argument("--dump", action="store_true", help="вывести параметры как JSON")
 
     args = p.parse_args()
@@ -215,6 +254,9 @@ def main() -> None:
             size_chart=args.size_chart, chargeback_payment=not args.no_chargeback,
             price=args.price, discount_pct=args.discount, generic_listing=args.generic,
             repeated_complaints=args.repeated_complaints, restricted_category=args.restricted,
+            account_clean=not args.dirty_account, account_high_tier=args.high_tier,
+            ships_from_eu=args.from_eu, declaration_lines=args.lines,
+            seller_responds=not args.seller_silent,
         )
 
     if args.dump:
