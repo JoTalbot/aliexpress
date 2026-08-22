@@ -520,5 +520,46 @@ class TestScopeGuard(unittest.TestCase):
                                             f"возможный секрет в {f}")
 
 
+class TestRecoveryTooling(unittest.TestCase):
+    """Скрипты восстановления окружения обязаны оставаться валидным bash
+    и ссылаться на существующие файлы. Поломка = окружение не восстановится
+    после потери песочницы (цена — потерянные данные и секреты)."""
+
+    RECOVERY_SCRIPTS = [
+        "scripts/bootstrap.sh",
+        "scripts/save.sh",
+        "scripts/vault.sh",
+        "scripts/backup.sh",
+        "scripts/recovery_check.sh",
+    ]
+
+    def test_recovery_scripts_are_valid_bash(self):
+        import shutil
+        import subprocess
+        bash = shutil.which("bash")
+        if not bash:
+            self.skipTest("bash недоступен в окружении")
+        for rel in self.RECOVERY_SCRIPTS:
+            p = ROOT / rel
+            self.assertTrue(p.exists(), f"нет файла {rel}")
+            r = subprocess.run([bash, "-n", str(p)], capture_output=True, text=True)
+            self.assertEqual(r.returncode, 0,
+                             f"{rel} не проходит bash -n: {r.stderr.strip()}")
+
+    def test_vault_template_and_gitignore_align(self):
+        # Шаблон хранилища должен существовать (из него vault.sh init создаёт vault.enc).
+        self.assertTrue((ROOT / "secrets" / "vault.template.env").exists(),
+                        "нет secrets/vault.template.env")
+        # vault.enc НЕ должен игнорироваться .gitignore — иначе секреты не закоммитятся.
+        gi = (ROOT / ".gitignore").read_text(encoding="utf-8")
+        self.assertIn("!secrets/vault.template.env", gi,
+                      ".gitignore должен разигнорировать шаблон vault")
+
+    def test_disaster_recovery_doc_points_to_check_script(self):
+        doc = (ROOT / "docs" / "DISASTER_RECOVERY.md").read_text(encoding="utf-8")
+        self.assertIn("recovery_check.sh", doc,
+                      "DISASTER_RECOVERY.md должен ссылаться на recovery_check.sh")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2 if "-v" in sys.argv else 1)

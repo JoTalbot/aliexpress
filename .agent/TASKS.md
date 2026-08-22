@@ -98,7 +98,7 @@
 | T-073 | Temu/Shein как каналы дропшиппинга (research/20) | DONE | arena-agent-sandbox-20260817-1330 |
 | T-074 | Налоги дропшиппинга UA 2026 (research/21) | DONE | arena-agent-sandbox-20260817-1330 |
 | T-075 | Сравнение платформ дропшиппинга: CJ/Spocket/Zendrop + US/EU-склады (research/22) | DONE | arena-agent-sandbox-20260822-0029 |
-| T-076 | Восстановление окружения под ключ: recovery_check + правки bootstrap/docs | IN-PROGRESS | arena-agent-sandbox-20260822-0029 |
+| T-076 | Восстановление окружения под ключ: recovery_check + правки bootstrap/docs | DONE | arena-agent-sandbox-20260822-0029 |
 
 ## Постоянный мониторинг (не закрывается)
 

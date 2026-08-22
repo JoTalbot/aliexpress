@@ -84,6 +84,27 @@ if [[ -f tests/test_tools.py ]]; then
   rm -f /tmp/_tests.log
 fi
 
+# --- 5.7. готовность к потере окружения ------------------------------------
+echo
+say "ГОТОВНОСТЬ К ПОТЕРЕ ОКРУЖЕНИЯ"
+if [[ ! -f secrets/vault.enc ]]; then
+  warn "secrets/vault.enc отсутствует — секреты (GITHUB_TOKEN и др.) НЕ восстановятся."
+  warn "Одноразово: export VAULT_PASSPHRASE='...' && ./scripts/vault.sh init && ./scripts/vault.sh edit"
+  warn "           затем: git add secrets/vault.enc && ./scripts/save.sh \"chore(secrets): vault создан\""
+else
+  echo "    ✓ secrets/vault.enc на месте"
+fi
+if [[ -f secrets/data-backup.tar.gz.enc ]]; then
+  if [[ -f data/ledger.json && data/ledger.json -nt secrets/data-backup.tar.gz.enc ]]; then
+    warn "data/ledger.json новее бэкапа — ./scripts/backup.sh save"
+  else
+    echo "    ✓ шифрованный бэкап данных актуален"
+  fi
+else
+  warn "бэкапа данных нет — ./scripts/backup.sh save"
+fi
+echo "    Полная проверка: ./scripts/recovery_check.sh"
+
 # --- 6. состояние проекта --------------------------------------------------
 echo
 say "СОСТОЯНИЕ ПРОЕКТА"
@@ -101,5 +122,9 @@ echo "    2. .agent/STATUS.md     — что происходит сейчас"
 echo "    3. .agent/HANDOFF.md    — последняя передача контекста"
 echo "    4. .agent/LOCKS.md      — что занято другими агентами"
 echo "    5. .agent/TASKS.md      — взять свободную задачу"
+echo
+echo "ВОССТАНОВЛЕНИЕ ДАННЫХ (если это новый клон):"
+echo "    ./scripts/backup.sh restore          — вернуть заказы и P&L"
+echo "    ./scripts/recovery_check.sh          — проверить, всё ли сохранено"
 echo
 say "Готово."

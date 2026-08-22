@@ -3,6 +3,9 @@
 **Короткий ответ:** всё живёт в GitHub. Секреты и рабочие данные — в зашифрованном
 виде, там же. Единственное, что вы храните вне репозитория, — **мастер-пароль**.
 
+Проверка, что окружение можно терять без потерь, — одной командой:
+`./scripts/recovery_check.sh`.
+
 ---
 
 ## Что где хранится
@@ -28,7 +31,14 @@ export VAULT_PASSPHRASE='придумайте-длинный-пароль'
 ./scripts/vault.sh init     # создать хранилище секретов
 ./scripts/vault.sh edit     # вписать GITHUB_TOKEN и прочее
 ./scripts/backup.sh save    # зашифровать и запушить рабочие данные
+
+git add secrets/vault.enc
+./scripts/save.sh "chore(secrets): vault создан"   # закоммитить хранилище!
 ```
+
+⚠️ **Шаг `git add secrets/vault.enc` обязателен.** `vault.enc` не игнорируется
+`.gitignore` (он зашифрован), но и не появится в git сам по себе. Без этого коммита
+секреты в свежем клоне не восстановятся — `recovery_check.sh` это ловит.
 
 ⚠️ **Пароль запишите в менеджер паролей прямо сейчас.** Без него данные
 не восстановить — это не фигура речи, восстановления не существует.
@@ -43,10 +53,13 @@ export VAULT_PASSPHRASE='придумайте-длинный-пароль'
 git clone https://github.com/JoTalbot/aliexpress.git && cd aliexpress
 export VAULT_PASSPHRASE='ваш-пароль'
 
-./scripts/backup.sh restore      # вернуть заказы и P&L
-eval "$(./scripts/vault.sh export)"   # загрузить секреты в окружение
-./scripts/bootstrap.sh           # настроить git, проверить инструменты и тесты
+./scripts/backup.sh restore          # вернуть заказы и P&L
+eval "$(./scripts/vault.sh export)"  # загрузить секреты в окружение
+./scripts/bootstrap.sh               # настроить git, проверить инструменты и тесты
 ```
+
+Порядок `restore` и `export` не важен. `bootstrap.sh` в конце сам покажет,
+что с хранилищем и бэкапом, и подскажет `recovery_check.sh`.
 
 Проверено на практике: клон в чистую директорию → восстановление →
 `order_ledger.py pnl` показывает те же 6 заказов и итог +32.40.
@@ -59,7 +72,7 @@ eval "$(./scripts/vault.sh export)"   # загрузить секреты в о�
 |---|---|
 | Каждые 10–15 минут работы | `./scripts/save.sh "описание"` — код и документы |
 | После изменения заказов | `./scripts/backup.sh save` — зашифрованные данные |
-| Проверить, всё ли сохранено | `./scripts/backup.sh diff` |
+| Проверить, всё ли сохранено | `./scripts/recovery_check.sh` |
 | Сменить токен/пароль сервиса | `./scripts/vault.sh edit` затем `save.sh` |
 
 **Важно:** `save.sh` коммитит код, но **не** трогает `data/` — он в `.gitignore`.
@@ -92,6 +105,7 @@ eval "$(./scripts/vault.sh export)"   # загрузить секреты в о�
 rm secrets/vault.enc secrets/data-backup.tar.gz.enc
 export VAULT_PASSPHRASE='новый-пароль'
 ./scripts/vault.sh init
+git add secrets/vault.enc && ./scripts/save.sh "chore(secrets): vault пересоздан"
 ```
 
 Все токены перевыпустить заново, данные ledger вводить с нуля.
@@ -102,9 +116,15 @@ export VAULT_PASSPHRASE='новый-пароль'
 ## Что проверить перед тем, как закрыть окружение
 
 ```bash
-git status                    # должно быть чисто
-./scripts/backup.sh diff      # «Бэкап актуален»
-python3 tests/test_tools.py   # 41 тест OK
+./scripts/recovery_check.sh    # одна команда вместо чек-листа ниже
 ```
 
-Если все три зелёные — окружение можно терять без потерь.
+Он проверяет пять вещей и выходит с кодом 0 (всё ок) или 1 (что доделать):
+
+1. рабочее дерево чисто (всё закоммичено);
+2. `secrets/vault.enc` создан **и** закоммичен;
+3. шифрованный бэкап данных актуален (`ledger.json` не новее бэкапа);
+4. регрессионные тесты проходят;
+5. в истории коммитов нет открытых `ghp_`-токенов.
+
+Если все зелёные — окружение можно терять без потерь.
