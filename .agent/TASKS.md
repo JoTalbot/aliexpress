@@ -97,6 +97,7 @@
 | T-072 | Экономика Choice (research/19) | DONE | arena-agent-sandbox-20260817-1330 |
 | T-073 | Temu/Shein как каналы дропшиппинга (research/20) | DONE | arena-agent-sandbox-20260817-1330 |
 | T-074 | Налоги дропшиппинга UA 2026 (research/21) | DONE | arena-agent-sandbox-20260817-1330 |
+| T-075 | Сравнение платформ дропшиппинга: CJ/Spocket/Zendrop + US/EU-склады (research/22) | IN-PROGRESS | arena-agent-sandbox-20260822-0029 |
 
 ## Постоянный мониторинг (не закрывается)
 
