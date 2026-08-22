@@ -99,8 +99,8 @@
 | T-074 | Налоги дропшиппинга UA 2026 (research/21) | DONE | arena-agent-sandbox-20260817-1330 |
 | T-075 | Сравнение платформ дропшиппинга: CJ/Spocket/Zendrop + US/EU-склады (research/22) | DONE | arena-agent-sandbox-20260822-0029 |
 | T-076 | Восстановление окружения под ключ: recovery_check + правки bootstrap/docs | DONE | arena-agent-sandbox-20260822-0029 |
-| T-077 | Threat intel: свежий срез 2026 рефанд-индустрии (research/06+16) | IN-PROGRESS | arena-agent-sandbox-20260822-0029 |
-| T-078 | Hidden links как явление: углубление research/05 (IPP, DSA, AI-детекция) | IN-PROGRESS | arena-agent-sandbox-20260822-0029 |
+| T-077 | Threat intel: свежий срез 2026 рефанд-индустрии (research/06+16) | DONE | arena-agent-sandbox-20260822-0029 |
+| T-078 | Hidden links как явление: углубление research/05 (IPP, DSA, AI-детекция) | DONE | arena-agent-sandbox-20260822-0029 |
 
 ## Постоянный мониторинг (не закрывается)
 

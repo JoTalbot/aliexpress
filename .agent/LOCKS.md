@@ -13,7 +13,7 @@
 
 | AGENT_ID | Область | Задача | Взят (UTC) | Истекает (UTC) |
 |---|---|---|---|---|
-| arena-agent-sandbox-20260822-0029 | research/05, 06, 16, CONTEXT | T-077 + T-078 (threat intel 2026, hidden links) | 2026-08-22 01:50Z | 2026-08-22 03:20Z |
+| _(пусто)_ | | | | |
 
 ## Области, которые нельзя лочить надолго
 
@@ -40,3 +40,4 @@
 | arena-agent-sandbox-20260817-1330 | research/19-21 | 2026-08-17 17:15Z | 2026-08-17 17:50Z | завершено (T-072..074) |
 | arena-agent-sandbox-20260822-0029 | research/22, 00-INDEX, CONTEXT | 2026-08-22 00:30Z | 2026-08-22 01:05Z | завершено (T-075) |
 | arena-agent-sandbox-20260822-0029 | scripts, docs/DISASTER_RECOVERY, tests | 2026-08-22 01:20Z | 2026-08-22 02:00Z | завершено (T-076) |
+| arena-agent-sandbox-20260822-0029 | research/05+06+16, CONTEXT | 2026-08-22 01:50Z | 2026-08-22 02:35Z | завершено (T-077/078) |
